@@ -99,16 +99,20 @@ spec:
                 configMapKeyRef:
                   name: {{ include "controlplane.fullname" . }}-configmap
                   key: authRedirectUri
+            {{ if .Values.configuration.jwtSecret }}
             - name: AUTH_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: jwtSessionSecret
+            {{- end }}
+            {{ if .Values.configuration.databaseUrl }}
             - name: DB_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: databaseUrl
+            {{- end }}
             {{- if .Values.configuration.databaseTlsCert }}
             - name: DB_TLS_CERT
               valueFrom:
@@ -130,11 +134,13 @@ spec:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: databaseTlsKey
             {{- end }}
+            {{- if .Values.configuration.clickhouseDsn }}
             - name: CLICKHOUSE_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: clickhouseDsn
+            {{- end }}
             - name: KC_REALM
               valueFrom:
                 configMapKeyRef:
@@ -150,11 +156,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: keycloakAdminUser
+            {{ if .Values.global.keycloak.adminPassword }}
             - name: KC_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: keycloakAdminPassword
+            {{- end }}
             - name: KC_API_URL
               valueFrom:
                 configMapKeyRef:
@@ -175,11 +183,13 @@ spec:
                 configMapKeyRef:
                   name: {{ include "controlplane.fullname" . }}-configmap
                   key: webhookUrl
+            {{ if .Values.configuration.webhookSecret }}
             - name: WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: webhookSecret
+            {{- end }}
             - name: GITHUB_APP_CLIENT_ID
               valueFrom:
                 configMapKeyRef:
@@ -190,21 +200,27 @@ spec:
                 configMapKeyRef:
                   name: {{ include "controlplane.fullname" . }}-configmap
                   key: githubAppId
+            {{ if .Values.configuration.githubAppClientSecret }}
             - name: GITHUB_APP_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: githubAppClientSecret
+            {{- end }}
+            {{ if .Values.configuration.githubAppPrivateKey }}
             - name: GITHUB_APP_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: githubAppPrivateKey
+            {{- end }}
+            {{ if .Values.configuration.githubAppWebhookSecret }}
             - name: GITHUB_APP_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: githubAppWebhookSecret
+            {{- end }}
             {{- if .Values.configuration.slackAppClientId }}
             - name: SLACK_APP_CLIENT_ID
               valueFrom:
@@ -226,11 +242,13 @@ spec:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: s3StorageUrl
             {{- end }}
+            {{- if .Values.configuration.smtpPassword }}
             - name: SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: smtpPassword
+            {{- end }}
             - name: SMTP_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -302,6 +320,11 @@ spec:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: openAiApiKey
             {{- end }}
+          {{- if .Values.extraEnvVarsSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.extraEnvVarsSecret }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

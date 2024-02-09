@@ -131,6 +131,9 @@ probes:
 # Application configuration #
 #############################
 
+# -- Name of existing Secret containing extra env vars or to overide secret values
+extraEnvVarsSecret: ""
+
 # -- The name of the configmap to use for the otelcollector configuration. The key must be "otel-config.yaml".
 existingConfigmap:
 

@@ -41,12 +41,19 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ include "controlplane.image" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.configuration.clickhouseMigrationDsn }}
           env:
             - name: CLICKHOUSE_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "controlplane.fullname" . }}-secret
                   key: clickhouseMigrationDsn
+          {{- end }}
+          {{- if .Values.clickhouseMigrationExtraEnvVarsSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.clickhouseMigrationExtraEnvVarsSecret }}
+          {{- end }}
           args:
             - "/app/dist/bin/ch-migrate.js"
 {{- end }}

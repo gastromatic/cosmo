@@ -127,11 +127,14 @@ probes:
 #  controlplane:
 #    jwtSecret: <secret>
 
+# -- Name of existing Secret containing extra env vars or to overide secret values
+extraEnvVarsSecret: ""
+
 #############################
 # Application configuration #
 #############################
 
 configuration:
-  clickhouseDsn: "clickhouse://default:changeme@cosmo-clickhouse:9000/cosmo?dial_timeout=15s&compress=lz4"
+  clickhouseDsn: ""
   logLevel: "info"
   listenAddr: "0.0.0.0:4005"

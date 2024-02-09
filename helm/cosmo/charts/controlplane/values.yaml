@@ -151,13 +151,19 @@ probes:
 # Application configuration #
 #############################
 
+# -- Name of existing Secret containing extra env vars or to overide secret values
+extraEnvVarsSecret: ""
+
+# -- Name of existing Secret containing extra env vars or to overide secret values for clickhouse migration
+clickhouseMigrationExtraEnvVarsSecret: ""
+
 configuration:
   logLevel: 'info'
   allowedOrigins:
     - '*'
   debugSQL: false
   authRedirectUri: 'http://controlplane.wundergraph.local/v1/auth/callback'
-  databaseUrl: 'postgres://postgres:changeme@cosmo-postgresql:5432/controlplane'
+  databaseUrl: ''
   # -- When connecting to a postgres instance over TLS. Accept a cert in PEM format (as one-line with \n) or file.
   databaseTlsCa: ''
   databaseTlsCert: ''
@@ -169,8 +175,8 @@ configuration:
   redisTlsCa: ''
   redisTlsCert: ''
   redisTlsKey: ''
-  clickhouseDsn: 'http://default:changeme@cosmo-clickhouse:8123?database=cosmo'
-  clickhouseMigrationDsn: 'clickhouse://default:changeme@cosmo-clickhouse:9000?database=cosmo'
+  clickhouseDsn: ''
+  clickhouseMigrationDsn: ''
   webhookUrl: ''
   webhookSecret: ''
   githubAppClientId: ''
@@ -180,7 +186,7 @@ configuration:
   githubAppWebhookSecret: ''
   slackAppClientId: ''
   slackAppClientSecret: ''
-  s3StorageUrl: 'http://minio:changeme@minio.wundergraph.local:9000/cosmo'
+  s3StorageUrl: ''
   smtpUsername: ''
   smtpPassword: ''
   stripeSecretKey: ''

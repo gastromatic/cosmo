@@ -59,16 +59,25 @@ spec:
             {{- if .Values.extraEnvVars }}
             {{- toYaml .Values.extraEnvVars | nindent 12 }}
             {{- end }}
+            {{- if .Values.configuration.clickhouseDsn }}
             - name: CLICKHOUSE_ENDPOINT
               valueFrom:
                 secretKeyRef:
                   name: {{ include "otelcollector.fullname" . }}
                   key: clickhouseDsn
+            {{- end }}
+            {{- if .Values.global.controlplane.jwtSecret }}
             - name: OTEL_INGEST_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "otelcollector.fullname" . }}
                   key: authJwtSecret
+            {{- end }}
+          {{- if .Values.extraEnvVarsSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.extraEnvVarsSecret }}
+          {{- end }}
           {{- if .Values.existingConfigmap }}
           volumeMounts:
             - mountPath: /etc/otel-config.yaml
