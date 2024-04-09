@@ -4,6 +4,18 @@ Binaries are attached to the github release otherwise all images can be found [h
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.8.0](https://github.com/wundergraph/cosmo/compare/cdn@0.7.2...cdn@0.8.0) (2024-03-24)
+
+### Features
+
+* multi platform docker builds ([#665](https://github.com/wundergraph/cosmo/issues/665)) ([4c24d70](https://github.com/wundergraph/cosmo/commit/4c24d7075bd48cd946a1037bffc0c4fcaef74289)) (@StarpTech)
+
+## [0.7.2](https://github.com/wundergraph/cosmo/compare/cdn@0.7.1...cdn@0.7.2) (2024-03-21)
+
+### Bug Fixes
+
+* **cdn:** shutdown gracefully ([#657](https://github.com/wundergraph/cosmo/issues/657)) ([bcb056f](https://github.com/wundergraph/cosmo/commit/bcb056fdb4964b5d296774bac5fa0ef1adc66454)) (@StarpTech)
+
 ## [0.7.1](https://github.com/wundergraph/cosmo/compare/cdn@0.7.0...cdn@0.7.1) (2024-03-16)
 
 **Note:** Version bump only for package cdn

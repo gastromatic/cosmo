@@ -17,7 +17,8 @@ export type FeatureIds =
   | 'security'
   | 'support'
   | 'ai'
-  | 'oidc';
+  | 'oidc'
+  | 'scim';
 
 export type Features = {
   [key in FeatureIds]: Feature;
@@ -29,11 +30,14 @@ export type Feature = {
   limit?: number | null;
 };
 
-export interface ListFilterOptions {
+export interface FederatedGraphListFilterOptions extends SubgraphListFilterOptions {
+  supportsFederation?: boolean;
+}
+
+export interface SubgraphListFilterOptions {
   namespaceId?: string;
   limit: number;
   offset: number;
-  supportsFederation?: boolean;
 }
 
 export interface Label {
@@ -169,6 +173,7 @@ export interface OrganizationMemberDTO {
   orgMemberID: string;
   email: string;
   roles: string[];
+  active: boolean;
 }
 
 export interface OrganizationInvitationDTO {

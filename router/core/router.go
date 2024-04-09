@@ -17,6 +17,7 @@ import (
 	"github.com/nats-io/nuid"
 
 	"github.com/redis/go-redis/v9"
+
 	"github.com/wundergraph/cosmo/router/internal/recoveryhandler"
 	"github.com/wundergraph/cosmo/router/internal/requestlogger"
 	"github.com/wundergraph/cosmo/router/pkg/config"
@@ -29,6 +30,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/golang-jwt/jwt/v5"
+	brotli "go.withmatt.com/connect-brotli"
+
 	"github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/graphqlmetrics/v1/graphqlmetricsv1connect"
 	"github.com/wundergraph/cosmo/router/internal/cdn"
 	"github.com/wundergraph/cosmo/router/internal/controlplane/configpoller"
@@ -37,16 +40,11 @@ import (
 	"github.com/wundergraph/cosmo/router/internal/docker"
 	"github.com/wundergraph/cosmo/router/internal/graphqlmetrics"
 	rjwt "github.com/wundergraph/cosmo/router/internal/jwt"
-	brotli "go.withmatt.com/connect-brotli"
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mitchellh/mapstructure"
-	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
-	"github.com/wundergraph/cosmo/router/internal/graphiql"
-	"github.com/wundergraph/cosmo/router/internal/retrytransport"
-	"github.com/wundergraph/cosmo/router/internal/stringsx"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -54,6 +52,11 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
+	"github.com/wundergraph/cosmo/router/internal/graphiql"
+	"github.com/wundergraph/cosmo/router/internal/retrytransport"
+	"github.com/wundergraph/cosmo/router/internal/stringsx"
 )
 
 type IPAnonymizationMethod string
@@ -389,7 +392,7 @@ func NewRouter(opts ...Option) (*Router, error) {
 	if r.traceConfig.Enabled && len(r.traceConfig.Exporters) == 0 {
 		if endpoint := otelconfig.DefaultEndpoint(); endpoint != "" {
 			r.logger.Debug("Using default trace exporter", zap.String("endpoint", endpoint))
-			r.traceConfig.Exporters = append(r.traceConfig.Exporters, &rtrace.Exporter{
+			r.traceConfig.Exporters = append(r.traceConfig.Exporters, &rtrace.ExporterConfig{
 				Endpoint: endpoint,
 				Exporter: otelconfig.ExporterOLTPHTTP,
 				HTTPPath: "/v1/traces",
@@ -705,6 +708,7 @@ func (r *Router) bootstrap(ctx context.Context) error {
 				Enabled: r.ipAnonymization.Enabled,
 				Method:  rtrace.IPAnonymizationMethod(r.ipAnonymization.Method),
 			},
+			MemoryExporter: r.traceConfig.TestMemoryExporter,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to start trace agent: %w", err)
@@ -720,6 +724,7 @@ func (r *Router) bootstrap(ctx context.Context) error {
 				return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 			}
 			r.promMeterProvider = mp
+
 			r.prometheusServer = rmetric.NewPrometheusServer(r.logger, r.metricConfig.Prometheus.ListenAddr, r.metricConfig.Prometheus.Path, registry)
 			go func() {
 				if err := r.prometheusServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -727,11 +732,15 @@ func (r *Router) bootstrap(ctx context.Context) error {
 				}
 			}()
 		}
-		mp, err := rmetric.NewOtlpMeterProvider(ctx, r.logger, r.metricConfig, r.instanceID)
-		if err != nil {
-			return fmt.Errorf("failed to start trace agent: %w", err)
+
+		if r.metricConfig.OpenTelemetry.Enabled {
+			mp, err := rmetric.NewOtlpMeterProvider(ctx, r.logger, r.metricConfig, r.instanceID)
+			if err != nil {
+				return fmt.Errorf("failed to start trace agent: %w", err)
+			}
+			r.otlpMeterProvider = mp
 		}
-		r.otlpMeterProvider = mp
+
 	}
 
 	r.gqlMetricsExporter = graphqlmetrics.NewNoopExporter()
@@ -972,6 +981,7 @@ func (r *Router) newServer(ctx context.Context, routerConfig *nodev1.RouterConfi
 			rmetric.WithOtlpMeterProvider(r.otlpMeterProvider),
 			rmetric.WithLogger(r.logger),
 			rmetric.WithProcessStartTime(r.processStartTime),
+			rmetric.WithRouterRuntimeMetrics(r.metricConfig.OpenTelemetry.RouterRuntime),
 			rmetric.WithAttributes(
 				baseAttributes...,
 			),
@@ -1013,6 +1023,7 @@ func (r *Router) newServer(ctx context.Context, routerConfig *nodev1.RouterConfi
 					return retrytransport.IsRetryableError(err, resp) && !isMutationRequest(req.Context())
 				},
 			},
+			TracerProvider:                r.tracerProvider,
 			LocalhostFallbackInsideDocker: r.localhostFallbackInsideDocker,
 			Logger:                        r.logger,
 		},
@@ -1039,18 +1050,6 @@ func (r *Router) newServer(ctx context.Context, routerConfig *nodev1.RouterConfi
 		MaxOperationSizeInBytes: int64(r.routerTrafficConfig.MaxRequestBodyBytes),
 		PersistentOpClient:      r.cdnPersistentOpClient,
 	})
-	// Pre-hash all data source IDs to avoid races
-	// TODO: Ideally, we would do this in the engine itself
-	// Context:
-	// In case we have 2 concurrent requests that need planning and use the same data source
-	// it's possible that we run into a race by either calling Hash() on the same data source
-	// or by calling Planner(), which might have side effects.
-	// E.g. in a Data Source Factory, we might be lazily initializing a client
-	for i := range executor.PlanConfig.DataSources {
-		executor.PlanConfig.DataSources[i].Hash()
-		// Pre-init the Planner for each data source
-		executor.PlanConfig.DataSources[i].Factory.Planner(ctx)
-	}
 	operationPlanner := NewOperationPlanner(executor, planCache)
 
 	var graphqlPlaygroundHandler func(http.Handler) http.Handler
@@ -1085,14 +1084,18 @@ func (r *Router) newServer(ctx context.Context, routerConfig *nodev1.RouterConfi
 		TracerProvider:                         r.tracerProvider,
 		Authorizer:                             NewCosmoAuthorizer(authorizerOptions),
 		SubgraphErrorPropagation:               r.subgraphErrorPropagation,
+		EngineLoaderHooks:                      NewEngineRequestHooks(ro.metricStore),
 	}
 
 	if r.Config.rateLimit != nil && r.Config.rateLimit.Enabled {
 		handlerOpts.RateLimitConfig = r.Config.rateLimit
-		client := redis.NewClient(&redis.Options{
-			Addr:     r.Config.rateLimit.Storage.Addr,
-			Password: r.Config.rateLimit.Storage.Password,
-		})
+		options, err := redis.ParseURL(r.Config.rateLimit.Storage.Url)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse the redis connection url: %w", err)
+		}
+
+		client := redis.NewClient(options)
+
 		err = client.FlushDB(ctx).Err()
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to redis: %w", err)

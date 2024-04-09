@@ -4,6 +4,28 @@ Binaries are attached to the github release otherwise all images can be found [h
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.66.0](https://github.com/wundergraph/cosmo/compare/@wundergraph/cosmo-connect@0.65.0...@wundergraph/cosmo-connect@0.66.0) (2024-04-09)
+
+### Features
+
+* support edfs subscription stream/consumer; multiple subjects ([#685](https://github.com/wundergraph/cosmo/issues/685)) ([c70b2ae](https://github.com/wundergraph/cosmo/commit/c70b2aefd39c45b5f98eae8a3c43f639d56064b2)) (@Aenimus)
+
+# [0.65.0](https://github.com/wundergraph/cosmo/compare/@wundergraph/cosmo-connect@0.64.1...@wundergraph/cosmo-connect@0.65.0) (2024-04-03)
+
+### Features
+
+* implement scim server ([#664](https://github.com/wundergraph/cosmo/issues/664)) ([12591da](https://github.com/wundergraph/cosmo/commit/12591da32ef62e9498855ceda37beba72835a801)) (@)
+
+### Features
+
+* implement scim server ([#664](https://github.com/wundergraph/cosmo/issues/664)) ([12591da](https://github.com/wundergraph/cosmo/commit/12591da32ef62e9498855ceda37beba72835a801)) (@JivusAyrus)
+
+## [0.64.1](https://github.com/wundergraph/cosmo/compare/@wundergraph/cosmo-connect@0.64.0...@wundergraph/cosmo-connect@0.64.1) (2024-03-20)
+
+### Bug Fixes
+
+* proto fields ([#655](https://github.com/wundergraph/cosmo/issues/655)) ([e2c5909](https://github.com/wundergraph/cosmo/commit/e2c59090e0207325e423dc38e7b2a6cbae745508)) (@thisisnithin)
+
 # [0.64.0](https://github.com/wundergraph/cosmo/compare/@wundergraph/cosmo-connect@0.63.0...@wundergraph/cosmo-connect@0.64.0) (2024-03-20)
 
 ### Features

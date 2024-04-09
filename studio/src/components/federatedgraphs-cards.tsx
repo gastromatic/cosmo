@@ -286,7 +286,6 @@ export const RunRouterCommand = ({
   --rm \\
   -p 3002:3002 \\
   --add-host=host.docker.internal:host-gateway \\
-  --platform=linux/amd64 \\
   --pull always \\
   -e DEV_MODE=true \\
   -e LISTEN_ADDR=0.0.0.0:3002 \\
@@ -300,7 +299,6 @@ export const RunRouterCommand = ({
       <span>{`  --rm \\`}</span>
       <span>{`  -p 3002:3002 \\`}</span>
       <span>{`  --add-host=host.docker.internal:host-gateway \\`}</span>
-      <span>{`  --platform=linux/amd64 \\`}</span>
       <span>{`  -e pull=always \\`}</span>
       <span>{`  -e DEV_MODE=true \\`}</span>
       <span>{`  -e LISTEN_ADDR=0.0.0.0:3002 \\`}</span>
@@ -310,7 +308,9 @@ export const RunRouterCommand = ({
           {token ? (
             token
           ) : (
-            <span className="font-bold text-white">{"<graph-api-token>"}</span>
+            <span className="font-bold text-secondary-foreground">
+              {"<graph-api-token>"}
+            </span>
           )}{" "}
           \
         </span>
@@ -380,7 +380,9 @@ export const RunRouterCommand = ({
               <div className="flex items-center justify-between rounded border border-input bg-background p-4">
                 <code className="break-word whitespace-pre-wrap rounded font-mono text-xs leading-normal text-muted-foreground">
                   {`npx wgc router token create `}
-                  <span className="font-bold text-white">{"<name>"}</span>
+                  <span className="font-bold text-secondary-foreground">
+                    {"<name>"}
+                  </span>
                   {` ${namespace ? `-n ${namespace}` : ""} -g ${graphName}`}
                 </code>
                 <Button

@@ -15,6 +15,7 @@ import {
   schemaQueryDefinition,
   schemaToSortedNormalizedString,
   versionOnePersistedBaseSchema,
+  versionOneSchemaQueryAndPersistedDirectiveDefinitions,
   versionTwoPersistedBaseSchema,
   versionTwoPersistedDirectiveDefinitions,
   versionTwoSchemaQueryAndPersistedDirectiveDefinitions,
@@ -685,6 +686,7 @@ describe('FederationFactory tests', () => {
       ),
     );
   });
+
   test('that _entities and _service are removed even if a root type is renamed', () => {
     const { errors, federationResult } = federateSubgraphs([subgraphF, subgraphO]);
     expect(errors).toBeUndefined();
@@ -741,6 +743,116 @@ describe('FederationFactory tests', () => {
     expect(errors).toBeDefined();
     expect(errors![0]).toStrictEqual(incompatibleObjectExtensionOrphanBaseTypeError('Object', 'input object'));
   });
+
+  test('that renaming a root type also renames field return types of the same type #1.1', () => {
+    const { errors, federationResult } = federateSubgraphs([subgraphV, subgraphW]);
+    expect(errors).toBeUndefined();
+    expect(schemaToSortedNormalizedString(federationResult!.federatedGraphSchema)).toStrictEqual(
+      normalizeString(
+        versionOneSchemaQueryAndPersistedDirectiveDefinitions +
+          `        
+        type NestedObject {
+          query: [[[[Query!]]]]!
+        }
+        
+        type Object {
+          field: Query
+          nestedObject: NestedObject!
+        }
+        
+        type Query {
+          dummy: Object!
+          myQuery: [Query]
+          query: Query
+          queryTwo: [[[Query]!]]
+        }
+    `,
+      ),
+    );
+  });
+
+  test('that renaming a root type also renames field return types of the same type #1.2', () => {
+    const { errors, federationResult } = federateSubgraphs([subgraphW, subgraphV]);
+    expect(errors).toBeUndefined();
+    expect(schemaToSortedNormalizedString(federationResult!.federatedGraphSchema)).toStrictEqual(
+      normalizeString(
+        versionOneSchemaQueryAndPersistedDirectiveDefinitions +
+          `        
+        type NestedObject {
+          query: [[[[Query!]]]]!
+        }
+        
+        type Object {
+          field: Query
+          nestedObject: NestedObject!
+        }
+        
+        type Query {
+          dummy: Object!
+          myQuery: [Query]
+          query: Query
+          queryTwo: [[[Query]!]]
+        }
+    `,
+      ),
+    );
+  });
+
+  test('that renaming a root type also renames field return types of the same type #2.1', () => {
+    const { errors, federationResult } = federateSubgraphs([subgraphV, subgraphX]);
+    expect(errors).toBeUndefined();
+    expect(schemaToSortedNormalizedString(federationResult!.federatedGraphSchema)).toStrictEqual(
+      normalizeString(
+        versionOneSchemaQueryAndPersistedDirectiveDefinitions +
+          `        
+        type NestedObject {
+          query: [[[[Query!]]]]!
+        }
+        
+        type Object {
+          field: Query
+          nestedObject: NestedObject!
+        }
+        
+        type Query {
+          dummy: Object!
+          myQuery: [Query]
+          queries: [[[Query!]!]]
+          query: Query
+          queryTwo: [[[Query]!]]
+        }
+    `,
+      ),
+    );
+  });
+
+  test('that renaming a root type also renames field return types of the same type #2.2', () => {
+    const { errors, federationResult } = federateSubgraphs([subgraphX, subgraphV]);
+    expect(errors).toBeUndefined();
+    expect(schemaToSortedNormalizedString(federationResult!.federatedGraphSchema)).toStrictEqual(
+      normalizeString(
+        versionOneSchemaQueryAndPersistedDirectiveDefinitions +
+          `        
+        type NestedObject {
+          query: [[[[Query!]]]]!
+        }
+        
+        type Object {
+          field: Query
+          nestedObject: NestedObject!
+        }
+        
+        type Query {
+          dummy: Object!
+          myQuery: [Query]
+          queries: [[[Query!]!]]
+          query: Query
+          queryTwo: [[[Query]!]]
+        }
+    `,
+      ),
+    );
+  });
 });
 
 const demoEmployees: Subgraph = {
@@ -772,7 +884,7 @@ const subgraphA: Subgraph = {
   url: '',
   definitions: parse(`
     directive @external on FIELD_DEFINITION | OBJECT
-    directive @key(fields: String!) on INTERFACE | OBJECT
+    directive @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT
     directive @provides(fields: String!) on FIELD_DEFINITION
     directive @requires(fields: String!) on FIELD_DEFINITION
     directive @shareable on FIELD_DEFINITION | OBJECT
@@ -796,6 +908,8 @@ const subgraphA: Subgraph = {
       name: String! @shareable
       pp: Int! @shareable
     }
+    
+    scalar openfed__FieldSet
   `),
 };
 
@@ -1287,6 +1401,82 @@ const subgraphU: Subgraph = {
   definitions: parse(`
     input Object {
       field: String!
+    }
+  `),
+};
+
+const subgraphV: Subgraph = {
+  name: 'subgraph-v',
+  url: '',
+  definitions: parse(`
+    schema {
+      query: MyQuery
+    }
+    
+    type MyQuery {
+      dummy: Object!
+      query: MyQuery!
+      queryTwo: [[[MyQuery]!]]!
+      myQuery: [MyQuery]
+    }
+    
+    type Object {
+      field: MyQuery
+    }
+    
+    type NestedObject {
+      query: [[[[MyQuery!]]]!]!
+    }
+  `),
+};
+
+const subgraphW: Subgraph = {
+  name: 'subgraph-w',
+  url: '',
+  definitions: parse(`
+    schema {
+      query: Query
+    }
+    
+    type Query {
+      dummy: Object!
+      query: Query
+      queryTwo: [[[Query]!]]
+    }
+    
+    type Object {
+      field: Query
+      nestedObject: NestedObject!
+    }
+    
+    type NestedObject {
+      query: [[[[Query!]]]]!
+    }
+  `),
+};
+
+const subgraphX: Subgraph = {
+  name: 'subgraph-x',
+  url: '',
+  definitions: parse(`
+    schema {
+      query: Queries
+    }
+    
+    type Queries {
+      dummy: Object!
+      query: Queries
+      queryTwo: [[[Queries]!]]
+      queries: [[[Queries!]!]]
+    }
+    
+    type Object {
+      field: Queries
+      nestedObject: NestedObject!
+    }
+    
+    type NestedObject {
+      query: [[[[Queries!]]]]!
     }
   `),
 };

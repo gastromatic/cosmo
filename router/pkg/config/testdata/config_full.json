@@ -201,8 +201,7 @@
       "RejectExceedingRequests": true
     },
     "Storage": {
-      "Addr": "localhost:6379",
-      "Password": "test",
+      "Url": "redis://:test@localhost:6379",
       "KeyPrefix": "cosmo_rate_limit"
     },
     "Debug": false
@@ -217,11 +216,13 @@
     "Sources": {
       "another-nats": {
         "Provider": "NATS",
-        "URL": "nats://localhost:4223"
+        "URL": "nats://localhost:4223",
+        "Authentication": null
       },
       "default": {
         "Provider": "NATS",
-        "URL": "nats://localhost:4222"
+        "URL": "nats://localhost:4222",
+        "Authentication": null
       }
     }
   },

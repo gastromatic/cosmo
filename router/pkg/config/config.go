@@ -232,8 +232,7 @@ type RateLimitConfiguration struct {
 }
 
 type RedisConfiguration struct {
-	Addr      string `yaml:"addr" default:"localhost:6379" envconfig:"REDIS_ADDR"`
-	Password  string `yaml:"password,omitempty" envconfig:"REDIS_PASSWORD"`
+	Url       string `yaml:"url,omitempty" default:"redis://localhost:6379" envconfig:"RATE_LIMIT_REDIS_URL"`
 	KeyPrefix string `yaml:"key_prefix,omitempty" default:"cosmo_rate_limit" envconfig:"RATE_LIMIT_REDIS_KEY_PREFIX"`
 }
 
@@ -249,9 +248,24 @@ type CDNConfiguration struct {
 	CacheSize BytesString `yaml:"cache_size,omitempty" envconfig:"CDN_CACHE_SIZE" default:"100MB"`
 }
 
+type TokenBasedAuthentication struct {
+	Token *string `yaml:"token,omitempty"`
+}
+
+type UsernamePasswordBasedAuthentication struct {
+	Password *string `yaml:"password,omitempty"`
+	Username *string `yaml:"username,omitempty"`
+}
+
+type Authentication struct {
+	UsernamePasswordBasedAuthentication `yaml:",inline"`
+	TokenBasedAuthentication            `yaml:",inline"`
+}
+
 type EventSource struct {
-	Provider string `yaml:"provider,omitempty"`
-	URL      string `yaml:"url,omitempty"`
+	Provider       string          `yaml:"provider,omitempty"`
+	URL            string          `yaml:"url,omitempty"`
+	Authentication *Authentication `yaml:"authentication,omitempty"`
 }
 
 type EventsConfiguration struct {
@@ -456,8 +470,6 @@ func LoadConfig(configFilePath string, envOverride string) (*LoadResult, error) 
 		cfg.Config.JSONLog = false
 		cfg.Config.SubgraphErrorPropagation.Enabled = true
 		cfg.Config.SubgraphErrorPropagation.StatusCodes = true
-		cfg.Config.EngineExecutionConfiguration.Debug.ReportMemoryUsage = true
-		cfg.Config.EngineExecutionConfiguration.Debug.ReportWebSocketConnections = true
 	}
 
 	return cfg, nil

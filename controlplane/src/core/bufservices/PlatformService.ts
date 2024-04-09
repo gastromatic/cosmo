@@ -22,6 +22,7 @@ import {
   CreateFederatedGraphTokenResponse,
   CreateFederatedSubgraphResponse,
   CreateIntegrationResponse,
+  CreateMonographResponse,
   CreateNamespaceResponse,
   CreateOIDCProviderResponse,
   CreateOperationIgnoreAllOverrideResponse,
@@ -34,24 +35,27 @@ import {
   DeleteFederatedGraphResponse,
   DeleteFederatedSubgraphResponse,
   DeleteIntegrationResponse,
+  DeleteMonographResponse,
   DeleteNamespaceResponse,
   DeleteOIDCProviderResponse,
   DeleteOrganizationResponse,
   DeleteRouterTokenResponse,
+  DeploymentError,
   EnableLintingForTheNamespaceResponse,
+  Feature,
   FixSubgraphSchemaResponse,
   ForceCheckSuccessResponse,
   GenerateRouterTokenResponse,
-  GetAPIKeysResponse,
   GetAllDiscussionsResponse,
   GetAllOverridesResponse,
   GetAnalyticsViewResponse,
+  GetAPIKeysResponse,
   GetAuditLogsResponse,
   GetBillingPlansResponse,
   GetChangelogBySchemaVersionResponse,
   GetCheckOperationsResponse,
-  GetCheckSummaryResponse,
   GetChecksByFederatedGraphNameResponse,
+  GetCheckSummaryResponse,
   GetClientsResponse,
   GetCompositionDetailsResponse,
   GetCompositionsResponse,
@@ -60,8 +64,8 @@ import {
   GetDiscussionSchemasResponse,
   GetFederatedGraphByNameResponse,
   GetFederatedGraphChangelogResponse,
-  GetFederatedGraphSDLByNameResponse,
   GetFederatedGraphsBySubgraphLabelsResponse,
+  GetFederatedGraphSDLByNameResponse,
   GetFederatedGraphsResponse,
   GetFieldUsageResponse,
   GetGraphMetricsResponse,
@@ -79,8 +83,8 @@ import {
   GetOrganizationWebhookConfigsResponse,
   GetOrganizationWebhookMetaResponse,
   GetPersistedOperationsResponse,
-  GetRouterTokensResponse,
   GetRoutersResponse,
+  GetRouterTokensResponse,
   GetSdlBySchemaVersionResponse,
   GetSubgraphByNameResponse,
   GetSubgraphMembersResponse,
@@ -89,6 +93,7 @@ import {
   GetSubgraphSDLFromLatestCompositionResponse,
   GetSubgraphsResponse,
   GetTraceResponse,
+  GetUserAccessiblePermissionsResponse,
   GetUserAccessibleResourcesResponse,
   InviteUserResponse,
   IsGitHubAppInstalledResponse,
@@ -96,11 +101,14 @@ import {
   LintConfig,
   LintSeverity,
   MigrateFromApolloResponse,
+  MigrateMonographResponse,
   MoveGraphResponse,
-  PublishFederatedSubgraphResponse,
-  PublishPersistedOperationsResponse,
+  Permission,
   PublishedOperation,
   PublishedOperationStatus,
+  PublishFederatedSubgraphResponse,
+  PublishMonographResponse,
+  PublishPersistedOperationsResponse,
   RemoveInvitationResponse,
   RemoveOperationIgnoreAllOverrideResponse,
   RemoveOperationOverridesResponse,
@@ -110,36 +118,30 @@ import {
   RequestSeriesItem,
   Router,
   SetDiscussionResolutionResponse,
-  UpdateAISettingsResponse,
   UpdateDiscussionCommentResponse,
+  UpdateFeatureSettingsResponse,
   UpdateFederatedGraphResponse,
   UpdateIntegrationConfigResponse,
-  UpdateOrgMemberRoleResponse,
+  UpdateMonographResponse,
   UpdateOrganizationDetailsResponse,
   UpdateOrganizationWebhookConfigResponse,
-  UpdateRBACSettingsResponse,
+  UpdateOrgMemberRoleResponse,
   UpdateSubgraphResponse,
   UpgradePlanResponse,
   WhoAmIResponse,
-  CreateMonographResponse,
-  PublishMonographResponse,
-  UpdateMonographResponse,
-  DeleteMonographResponse,
-  MigrateMonographResponse,
-  DeploymentError,
 } from '@wundergraph/cosmo-connect/dist/platform/v1/platform_pb';
-import { isValidUrl, joinLabel, splitLabel } from '@wundergraph/cosmo-shared';
+import { isValidUrl, joinLabel } from '@wundergraph/cosmo-shared';
 import { subHours } from 'date-fns';
 import { FastifyBaseLogger } from 'fastify';
-import { DocumentNode, buildASTSchema, parse } from 'graphql';
+import { buildASTSchema, DocumentNode, parse } from 'graphql';
 import { validate } from 'graphql/validation/index.js';
 import { uid } from 'uid/secure';
 import {
   DateRange,
+  FeatureIds,
   FederatedGraphDTO,
   GraphApiKeyJwtPayload,
   GraphCompositionDTO,
-  Label,
   PublishedOperationData,
   SchemaLintIssues,
   SubgraphDTO,
@@ -150,7 +152,7 @@ import { buildSchema, composeSubgraphs } from '../composition/composition.js';
 import { getDiffBetweenGraphs } from '../composition/schemaCheck.js';
 import { schemaLintCheck } from '../composition/schemaLint.js';
 import { audiences, nowInSeconds, signJwtHS256 } from '../crypto/jwt.js';
-import { PublicError } from '../errors/errors.js';
+import { AuthenticationError, PublicError } from '../errors/errors.js';
 import { OpenAIGraphql } from '../openai-graphql/index.js';
 import { ApiKeyRepository } from '../repositories/ApiKeyRepository.js';
 import { AuditLogRepository } from '../repositories/AuditLogRepository.js';
@@ -179,19 +181,20 @@ import { TraceRepository } from '../repositories/analytics/TraceRepository.js';
 import { UsageRepository } from '../repositories/analytics/UsageRepository.js';
 import { parseTimeFilters } from '../repositories/analytics/util.js';
 import type { RouterOptions } from '../routes.js';
+import { AdmissionError } from '../services/AdmissionWebhookController.js';
 import { ApiKeyGenerator } from '../services/ApiGenerator.js';
 import ApolloMigrator from '../services/ApolloMigrator.js';
 import { BillingService } from '../services/BillingService.js';
 import OidcProvider from '../services/OidcProvider.js';
 import {
+  collectOperationUsageStats,
   InspectorOperationResult,
   InspectorSchemaChange,
   SchemaUsageTrafficInspector,
-  collectOperationUsageStats,
 } from '../services/SchemaUsageTrafficInspector.js';
 import Slack from '../services/Slack.js';
 import {
-  createInternalLabel,
+  createRandomInternalLabel,
   enrichLogger,
   extractOperationNames,
   formatSubscriptionProtocol,
@@ -206,7 +209,7 @@ import {
   validateDateRanges,
 } from '../util.js';
 import { FederatedGraphSchemaUpdate, OrganizationWebhookService } from '../webhooks/OrganizationWebhookService.js';
-import { AdmissionError } from '../services/AdmissionWebhookController.js';
+import { apiKeyPermissions } from '../constants.js';
 
 export default function (opts: RouterOptions): Partial<ServiceImpl<typeof PlatformService>> {
   return {
@@ -235,8 +238,8 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           };
         }
 
-        const exists = await namespaceRepo.byName(req.name);
-        if (exists) {
+        const namespace = await namespaceRepo.byName(req.name);
+        if (namespace) {
           return {
             response: {
               code: EnumStatusCode.ERR_ALREADY_EXISTS,
@@ -256,7 +259,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
               code: EnumStatusCode.ERR_NOT_FOUND,
               details: `Could not create namespace ${req.name}`,
             },
-            graphs: [],
           };
         }
 
@@ -522,12 +524,30 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: graph.targetId,
-            name: graph.name,
             targetType: 'federatedGraph',
           },
           headers: ctx.requestHeader,
           authContext,
         });
+
+        const targetIds = [graph.targetId];
+
+        const subgraphs = await subgraphRepo.listByFederatedGraph({
+          federatedGraphTargetId: graph.targetId,
+        });
+
+        if (subgraphs.length > 0) {
+          targetIds.push(subgraphs[0].targetId);
+          await opts.authorizer.authorize({
+            db: opts.db,
+            graph: {
+              targetId: subgraphs[0].targetId,
+              targetType: 'subgraph',
+            },
+            headers: ctx.requestHeader,
+            authContext,
+          });
+        }
 
         const newNamespace = await namespaceRepo.byName(req.newNamespace);
         if (!newNamespace) {
@@ -541,14 +561,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           };
         }
 
-        const subgraphs = await subgraphRepo.listByFederatedGraph({
-          federatedGraphTargetId: graph.targetId,
-        });
-
-        const targetIds = [graph.targetId];
-        if (subgraphs.length > 0) {
-          targetIds.push(subgraphs[0].targetId);
-        }
         await targetRepo.moveWithoutRecomposition({
           targetIds,
           newNamespaceId: newNamespace.id,
@@ -587,6 +599,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
         req.namespace = req.namespace || DefaultNamespace;
 
         const fedGraphRepo = new FederatedGraphRepository(logger, opts.db, authContext.organizationId);
+        const subgraphRepo = new SubgraphRepository(logger, opts.db, authContext.organizationId);
 
         const graph = await fedGraphRepo.byName(req.name, req.namespace, {
           supportsFederation: false,
@@ -605,12 +618,27 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: graph.targetId,
-            name: graph.name,
             targetType: 'federatedGraph',
           },
           headers: ctx.requestHeader,
           authContext,
         });
+
+        const subgraphs = await subgraphRepo.listByFederatedGraph({
+          federatedGraphTargetId: graph.targetId,
+        });
+
+        if (subgraphs.length > 0) {
+          await opts.authorizer.authorize({
+            db: opts.db,
+            graph: {
+              targetId: subgraphs[0].targetId,
+              targetType: 'subgraph',
+            },
+            headers: ctx.requestHeader,
+            authContext,
+          });
+        }
 
         await fedGraphRepo.enableFederationSupport({
           targetId: graph.targetId,
@@ -672,7 +700,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: graph.targetId,
-            name: graph.name,
             targetType: 'federatedGraph',
           },
           headers: ctx.requestHeader,
@@ -812,7 +839,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: graph.targetId,
-            name: graph.name,
             targetType: 'subgraph',
           },
           headers: ctx.requestHeader,
@@ -976,6 +1002,15 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             };
           }
 
+          if (await subgraphRepo.exists(req.name, req.namespace)) {
+            return {
+              response: {
+                code: EnumStatusCode.ERR_ALREADY_EXISTS,
+                details: `The subgraph ${req.name} being created for the monograph already exists in the namespace`,
+              },
+            };
+          }
+
           if (!isValidUrl(req.routingUrl)) {
             return {
               response: {
@@ -1012,7 +1047,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             };
           }
 
-          const label = createInternalLabel();
+          const label = createRandomInternalLabel();
 
           const labelMatchers = [joinLabel(label)];
 
@@ -1658,21 +1693,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           }
         }
 
-        if (req.gitInfo && opts.githubApp) {
-          const githubRepo = new GitHubRepository(opts.db, opts.githubApp);
-          await githubRepo.createCommitCheck({
-            schemaCheckID,
-            gitInfo: req.gitInfo,
-            compositionErrors,
-            breakingChangesCount: schemaChanges.breakingChanges.length,
-            hasClientTraffic,
-            subgraphName: subgraph.name,
-            organizationSlug: org.slug,
-            webBaseUrl: opts.webBaseUrl,
-            composedGraphs: result.compositions.map((c) => c.name),
-          });
-        }
-
         let lintIssues: SchemaLintIssues = { warnings: [], errors: [] };
         if (namespace.enableLinting && newSchemaSDL !== '') {
           const lintConfigs = await schemaLintRepo.getNamespaceLintConfig(namespace.id);
@@ -1696,6 +1716,25 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           hasBreakingChanges,
           hasLintErrors: lintIssues.errors.length > 0,
         });
+
+        if (req.gitInfo && opts.githubApp) {
+          try {
+            const githubRepo = new GitHubRepository(opts.db, opts.githubApp);
+            await githubRepo.createCommitCheck({
+              schemaCheckID,
+              gitInfo: req.gitInfo,
+              compositionErrors,
+              breakingChangesCount: schemaChanges.breakingChanges.length,
+              hasClientTraffic,
+              subgraphName: subgraph.name,
+              organizationSlug: org.slug,
+              webBaseUrl: opts.webBaseUrl,
+              composedGraphs: result.compositions.map((c) => c.name),
+            });
+          } catch (e) {
+            logger.error(e, 'Error creating commit check');
+          }
+        }
 
         return {
           response: {
@@ -1986,7 +2025,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: subgraphs[0].targetId,
-            name: subgraphs[0].name,
             targetType: 'subgraph',
           },
           headers: ctx.requestHeader,
@@ -2173,7 +2211,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             db: opts.db,
             graph: {
               targetId: subgraph.targetId,
-              name: subgraph.name,
               targetType: 'subgraph',
             },
             headers: ctx.requestHeader,
@@ -2824,7 +2861,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             db: opts.db,
             graph: {
               targetId: graph.targetId,
-              name: graph.name,
               targetType: 'federatedGraph',
             },
             headers: ctx.requestHeader,
@@ -2904,7 +2940,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: federatedGraph.targetId,
-            name: federatedGraph.name,
             targetType: 'federatedGraph',
           },
           headers: ctx.requestHeader,
@@ -2984,7 +3019,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: subgraph.targetId,
-            name: subgraph.name,
             targetType: 'subgraph',
           },
           headers: ctx.requestHeader,
@@ -3204,19 +3238,38 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             };
           }
 
-          const subgraph = (
-            await subgraphRepo.listByFederatedGraph({
-              federatedGraphTargetId: graph.targetId,
-            })
-          )[0];
+          const subgraphs = await subgraphRepo.listByFederatedGraph({
+            federatedGraphTargetId: graph.targetId,
+          });
+
+          if (subgraphs.length === 0) {
+            return {
+              response: {
+                code: EnumStatusCode.ERR_NOT_FOUND,
+                details: `Monograph '${req.name}' does not have any subgraphs`,
+              },
+              compositionErrors: [],
+            };
+          }
+
+          const subgraph = subgraphs[0];
 
           // check if the user is authorized to perform the action
           await opts.authorizer.authorize({
             db: opts.db,
             graph: {
               targetId: graph.targetId,
-              name: graph.name,
               targetType: 'federatedGraph',
+            },
+            headers: ctx.requestHeader,
+            authContext,
+          });
+
+          await opts.authorizer.authorize({
+            db: opts.db,
+            graph: {
+              targetId: subgraphs[0].targetId,
+              targetType: 'subgraph',
             },
             headers: ctx.requestHeader,
             authContext,
@@ -3269,6 +3322,22 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             actorType: authContext.auth === 'api_key' ? 'api_key' : 'user',
             targetNamespaceId: graph.namespaceId,
             targetNamespaceDisplayName: graph.namespace,
+          });
+
+          orgWebhooks.send({
+            eventName: OrganizationEventName.MONOGRAPH_SCHEMA_UPDATED,
+            payload: {
+              monograph: {
+                id: graph.id,
+                name: graph.name,
+                namespace: graph.namespace,
+              },
+              organization: {
+                id: authContext.organizationId,
+                slug: authContext.organizationSlug,
+              },
+              actor_id: authContext.userId,
+            },
           });
 
           return {
@@ -3329,7 +3398,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: federatedGraph.targetId,
-            name: federatedGraph.name,
             targetType: 'federatedGraph',
           },
           headers: ctx.requestHeader,
@@ -3506,7 +3574,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: subgraph.targetId,
-            name: subgraph.name,
             targetType: 'subgraph',
           },
           headers: ctx.requestHeader,
@@ -3993,7 +4060,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
 
         const apiKeyRepo = new ApiKeyRepository(opts.db);
         const auditLogRepo = new AuditLogRepository(opts.db);
-        const subgraphRepo = new SubgraphRepository(logger, opts.db, authContext.organizationId);
 
         if (!authContext.hasWriteAccess) {
           return {
@@ -4033,18 +4099,30 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
 
         const generatedAPIKey = ApiKeyGenerator.generate();
 
-        // We do not display subgraphs used for monographs in user accessible resources.
-        // So we automatically add them if such graphs are found
-        const monographSubgraphTargetIds = (
-          await subgraphRepo.list({
-            limit: 0,
-            offset: 0,
-            supportsFederation: false,
-            federatedGraphTargetIds: req.federatedGraphTargetIds,
-          })
-        ).map((s) => s.targetId);
+        // check if the user is authorized to perform the action
+        for (const targetId of req.federatedGraphTargetIds) {
+          await opts.authorizer.authorize({
+            db: opts.db,
+            graph: {
+              targetId,
+              targetType: 'federatedGraph',
+            },
+            headers: ctx.requestHeader,
+            authContext,
+          });
+        }
 
-        const subgraphTargetIds = new Set([...req.subgraphTargetIds, ...monographSubgraphTargetIds]);
+        for (const targetId of req.subgraphTargetIds) {
+          await opts.authorizer.authorize({
+            db: opts.db,
+            graph: {
+              targetId,
+              targetType: 'subgraph',
+            },
+            headers: ctx.requestHeader,
+            authContext,
+          });
+        }
 
         await apiKeyRepo.addAPIKey({
           name: keyName,
@@ -4052,7 +4130,8 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           userID: authContext.userId || req.userID,
           key: generatedAPIKey,
           expiresAt: req.expires,
-          targetIds: [...req.federatedGraphTargetIds, ...subgraphTargetIds],
+          targetIds: [...req.federatedGraphTargetIds, ...req.subgraphTargetIds],
+          permissions: req.permissions,
         });
 
         await auditLogRepo.addAuditLog({
@@ -4207,64 +4286,12 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
 
         await opts.keycloakClient.authenticateClient();
 
-        const groupName = org.slug;
-
-        const organizationGroup = await opts.keycloakClient.client.groups.find({
-          max: 1,
-          search: groupName,
+        await opts.keycloakClient.removeUserFromOrganization({
           realm: opts.keycloakRealm,
+          userID: user.id,
+          groupName: org.slug,
+          roles: orgMember.roles,
         });
-
-        if (organizationGroup.length === 0) {
-          throw new Error(`Organization group '${org.slug}' not found`);
-        }
-
-        for (const role of orgMember.roles) {
-          switch (role) {
-            case 'admin': {
-              const adminGroup = await opts.keycloakClient.fetchAdminChildGroup({
-                realm: opts.keycloakRealm,
-                kcGroupId: organizationGroup[0].id!,
-                orgSlug: groupName,
-              });
-              await opts.keycloakClient.client.users.delFromGroup({
-                id: user.id,
-                groupId: adminGroup.id!,
-                realm: opts.keycloakRealm,
-              });
-              break;
-            }
-            case 'developer': {
-              const devGroup = await opts.keycloakClient.fetchDevChildGroup({
-                realm: opts.keycloakRealm,
-                kcGroupId: organizationGroup[0].id!,
-                orgSlug: groupName,
-              });
-              await opts.keycloakClient.client.users.delFromGroup({
-                id: user.id,
-                groupId: devGroup.id!,
-                realm: opts.keycloakRealm,
-              });
-              break;
-            }
-            case 'viewer': {
-              const viewerGroup = await opts.keycloakClient.fetchViewerChildGroup({
-                realm: opts.keycloakRealm,
-                kcGroupId: organizationGroup[0].id!,
-                orgSlug: groupName,
-              });
-              await opts.keycloakClient.client.users.delFromGroup({
-                id: user.id,
-                groupId: viewerGroup.id!,
-                realm: opts.keycloakRealm,
-              });
-              break;
-            }
-            default: {
-              throw new Error(`Role ${role} does not exist`);
-            }
-          }
-        }
 
         await orgRepo.removeOrganizationMember({ organizationID: authContext.organizationId, userID: user.id });
 
@@ -4664,6 +4691,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
         logger = enrichLogger(ctx, logger, authContext);
 
         const orgRepo = new OrganizationRepository(logger, opts.db, opts.billingDefaultPlanId);
+        const fedRepo = new FederatedGraphRepository(logger, opts.db, authContext.organizationId);
         const auditLogRepo = new AuditLogRepository(opts.db);
 
         if (!authContext.hasWriteAccess) {
@@ -4675,9 +4703,34 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           };
         }
 
+        // Check if the user is authorized to subscribe to the events of the federated / mono graphs
+        for (const eventMeta of req.eventsMeta) {
+          if (!eventMeta.meta.value) {
+            continue;
+          }
+          for (const graphId of eventMeta.meta.value.graphIds) {
+            const graph = await fedRepo.byId(graphId);
+            if (!graph) {
+              throw new AuthenticationError(EnumStatusCode.ERROR_NOT_AUTHORIZED, `Not authorized to access graph`);
+            }
+            await opts.authorizer.authorize({
+              db: opts.db,
+              graph: {
+                targetId: graph.targetId,
+                targetType: 'federatedGraph',
+              },
+              headers: ctx.requestHeader,
+              authContext,
+            });
+          }
+        }
+
         await orgRepo.createWebhookConfig({
           organizationId: authContext.organizationId,
-          ...req,
+          eventsMeta: req.eventsMeta,
+          key: req.key,
+          events: req.events,
+          endpoint: req.endpoint,
         });
 
         await auditLogRepo.addAuditLog({
@@ -4707,6 +4760,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
         logger = enrichLogger(ctx, logger, authContext);
 
         const orgRepo = new OrganizationRepository(logger, opts.db, opts.billingDefaultPlanId);
+        const fedRepo = new FederatedGraphRepository(logger, opts.db, authContext.organizationId);
         const auditLogRepo = new AuditLogRepository(opts.db);
 
         if (!authContext.hasWriteAccess) {
@@ -4718,9 +4772,36 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           };
         }
 
+        // Check if the user is authorized to subscribe to the events of the federated / mono graphs
+        for (const eventMeta of req.eventsMeta) {
+          if (!eventMeta.meta.value) {
+            continue;
+          }
+          for (const graphId of eventMeta.meta.value.graphIds) {
+            const graph = await fedRepo.byId(graphId);
+            if (!graph) {
+              throw new AuthenticationError(EnumStatusCode.ERROR_NOT_AUTHORIZED, `Not authorized to access graph`);
+            }
+            await opts.authorizer.authorize({
+              db: opts.db,
+              graph: {
+                targetId: graph.targetId,
+                targetType: 'federatedGraph',
+              },
+              headers: ctx.requestHeader,
+              authContext,
+            });
+          }
+        }
+
         await orgRepo.updateWebhookConfig({
           organizationId: authContext.organizationId,
-          ...req,
+          id: req.id,
+          endpoint: req.endpoint,
+          events: req.events,
+          key: req.key,
+          eventsMeta: req.eventsMeta,
+          shouldUpdateKey: req.shouldUpdateKey,
         });
 
         await auditLogRepo.addAuditLog({
@@ -4763,7 +4844,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
 
         const config = await orgRepo.deleteWebhookConfig({
           organizationId: authContext.organizationId,
-          ...req,
+          id: req.id,
         });
 
         if (!config) {
@@ -5225,22 +5306,25 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
         });
         const highPriorityRole = getHighestPriorityRole({ userRoles });
 
-        const adminChildGroup = await opts.keycloakClient.fetchAdminChildGroup({
+        const adminChildGroup = await opts.keycloakClient.fetchChildGroup({
           realm: opts.keycloakRealm,
           orgSlug: org.slug,
           kcGroupId: organizationGroups[0].id!,
+          childGroupType: 'admin',
         });
 
-        const devChildGroup = await opts.keycloakClient.fetchDevChildGroup({
+        const devChildGroup = await opts.keycloakClient.fetchChildGroup({
           realm: opts.keycloakRealm,
           orgSlug: org.slug,
           kcGroupId: organizationGroups[0].id!,
+          childGroupType: 'developer',
         });
 
-        const viewerChildGroup = await opts.keycloakClient.fetchViewerChildGroup({
+        const viewerChildGroup = await opts.keycloakClient.fetchChildGroup({
           realm: opts.keycloakRealm,
           orgSlug: org.slug,
           kcGroupId: organizationGroups[0].id!,
+          childGroupType: 'viewer',
         });
 
         if (req.role === 'admin') {
@@ -5946,10 +6030,11 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             throw new Error(`Organization group '${groupName}' not found`);
           }
 
-          const devGroup = await opts.keycloakClient.fetchDevChildGroup({
+          const devGroup = await opts.keycloakClient.fetchChildGroup({
             realm: opts.keycloakRealm,
             kcGroupId: organizationGroups[0].id!,
             orgSlug: groupName,
+            childGroupType: 'developer',
           });
 
           const keycloakUser = await opts.keycloakClient.client.users.find({
@@ -6004,10 +6089,10 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
       });
     },
 
-    updateRBACSettings: (req, ctx) => {
+    updateFeatureSettings: (req, ctx) => {
       let logger = getLogger(ctx, opts.logger);
 
-      return handleError<PlainMessage<UpdateRBACSettingsResponse>>(ctx, logger, async () => {
+      return handleError<PlainMessage<UpdateFeatureSettingsResponse>>(ctx, logger, async () => {
         const authContext = await opts.authenticator.authenticate(ctx.requestHeader);
         logger = enrichLogger(ctx, logger, authContext);
 
@@ -6022,9 +6107,28 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           };
         }
 
+        let featureId: FeatureIds;
+        switch (req.featureId) {
+          case Feature.rbac: {
+            featureId = 'rbac';
+            break;
+          }
+          case Feature.ai: {
+            featureId = 'ai';
+            break;
+          }
+          case Feature.scim: {
+            featureId = 'scim';
+            break;
+          }
+          default: {
+            throw new Error(`Feature doesnt exist`);
+          }
+        }
+
         await orgRepo.updateFeature({
           organizationId: authContext.organizationId,
-          id: 'rbac',
+          id: featureId,
           enabled: req.enable,
         });
 
@@ -6086,7 +6190,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: subgraph.targetId,
-            name: subgraph.name,
             targetType: 'subgraph',
           },
           headers: ctx.requestHeader,
@@ -6147,7 +6250,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           db: opts.db,
           graph: {
             targetId: subgraph.targetId,
-            name: subgraph.name,
             targetType: 'subgraph',
           },
           headers: ctx.requestHeader,
@@ -6297,6 +6399,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
         const repo = new SubgraphRepository(logger, opts.db, authContext.organizationId);
         const namespaceRepo = new NamespaceRepository(opts.db, authContext.organizationId);
 
+        // Namespace is optional, if not provided, we get all the subgraphs
         const namespace = await namespaceRepo.byName(req.namespace);
 
         const list: SubgraphDTO[] = await repo.list({
@@ -6375,6 +6478,7 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
         const fedGraphRepo = new FederatedGraphRepository(logger, opts.db, authContext.organizationId);
         const namespaceRepo = new NamespaceRepository(opts.db, authContext.organizationId);
 
+        // Namespace is optional, if not provided, we get all the federated graphs
         const namespace = await namespaceRepo.byName(req.namespace);
 
         const list: FederatedGraphDTO[] = await fedGraphRepo.list({
@@ -6431,6 +6535,8 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
 
     getFederatedGraphsBySubgraphLabels: (req, ctx) => {
       let logger = getLogger(ctx, opts.logger);
+
+      req.namespace = req.namespace || DefaultNamespace;
 
       return handleError<PlainMessage<GetFederatedGraphsBySubgraphLabelsResponse>>(ctx, logger, async () => {
         const authContext = await opts.authenticator.authenticate(ctx.requestHeader);
@@ -8178,7 +8284,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
           const subgraphs = await subgraphRepo.list({
             limit: 0,
             offset: 0,
-            supportsFederation: true,
           });
 
           return {
@@ -8246,30 +8351,6 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             code: EnumStatusCode.OK,
           },
           members: await subgraphRepo.getSubgraphMembers(subgraph.id),
-        };
-      });
-    },
-
-    updateAISettings: (req, ctx) => {
-      let logger = getLogger(ctx, opts.logger);
-
-      return handleError<PlainMessage<UpdateAISettingsResponse>>(ctx, logger, async () => {
-        const authContext = await opts.authenticator.authenticate(ctx.requestHeader);
-        logger = enrichLogger(ctx, logger, authContext);
-
-        const orgRepo = new OrganizationRepository(logger, opts.db, opts.billingDefaultPlanId);
-
-        const enabled = await orgRepo.updateFeature({
-          id: 'ai',
-          organizationId: authContext.organizationId,
-          enabled: req.enable,
-        });
-
-        return {
-          response: {
-            code: EnumStatusCode.OK,
-          },
-          enabled,
         };
       });
     },
@@ -9183,6 +9264,48 @@ export default function (opts: RouterOptions): Partial<ServiceImpl<typeof Platfo
             } as LintConfig;
           }),
           linterEnabled: namespace.enableLinting,
+        };
+      });
+    },
+
+    getUserAccessiblePermissions: (req, ctx) => {
+      let logger = getLogger(ctx, opts.logger);
+
+      return handleError<PlainMessage<GetUserAccessiblePermissionsResponse>>(ctx, logger, async () => {
+        const authContext = await opts.authenticator.authenticate(ctx.requestHeader);
+        logger = enrichLogger(ctx, logger, authContext);
+        const organizationRepository = new OrganizationRepository(logger, opts.db);
+
+        if (!authContext.isAdmin) {
+          return {
+            response: {
+              code: EnumStatusCode.OK,
+            },
+            permissions: [],
+          };
+        }
+
+        const permissions: Permission[] = [];
+        for (const permission of apiKeyPermissions) {
+          if (permission.value === 'scim') {
+            const feature = await organizationRepository.getFeature({
+              organizationId: authContext.organizationId,
+              featureId: 'scim',
+            });
+            if (feature?.enabled) {
+              permissions.push({
+                displayName: permission.displayName,
+                value: permission.value,
+              } as Permission);
+            }
+          }
+        }
+
+        return {
+          response: {
+            code: EnumStatusCode.OK,
+          },
+          permissions,
         };
       });
     },

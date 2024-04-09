@@ -4,6 +4,42 @@ Binaries are attached to the github release otherwise all images can be found [h
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.50.3](https://github.com/wundergraph/cosmo/compare/wgc@0.50.2...wgc@0.50.3) (2024-04-09)
+
+**Note:** Version bump only for package wgc
+
+## [0.50.2](https://github.com/wundergraph/cosmo/compare/wgc@0.50.1...wgc@0.50.2) (2024-04-08)
+
+### Bug Fixes
+
+* provide default subscription protocol for composition-go ([#702](https://github.com/wundergraph/cosmo/issues/702)) ([53140ea](https://github.com/wundergraph/cosmo/commit/53140eabcc960bd95626837da308c86674aeb8a4)) (@Aenimus)
+
+## [0.50.1](https://github.com/wundergraph/cosmo/compare/wgc@0.50.0...wgc@0.50.1) (2024-04-04)
+
+### Bug Fixes
+
+* don't enforce org slug when using API key ([#688](https://github.com/wundergraph/cosmo/issues/688)) ([f5f7b4e](https://github.com/wundergraph/cosmo/commit/f5f7b4e5237d0d3a91a60c1878c0bf89dd721bee)) (@StarpTech)
+
+# [0.50.0](https://github.com/wundergraph/cosmo/compare/wgc@0.49.1...wgc@0.50.0) (2024-04-03)
+
+### Features
+
+* use offline token, refresh token implementation ([#686](https://github.com/wundergraph/cosmo/issues/686)) ([4429319](https://github.com/wundergraph/cosmo/commit/442931935e979f53b0b093fbad217a2c91807f8e)) (@)
+
+### Features
+
+* use offline token, refresh token implementation ([#686](https://github.com/wundergraph/cosmo/issues/686)) ([4429319](https://github.com/wundergraph/cosmo/commit/442931935e979f53b0b093fbad217a2c91807f8e)) (@StarpTech)
+
+## [0.49.1](https://github.com/wundergraph/cosmo/compare/wgc@0.49.0...wgc@0.49.1) (2024-03-21)
+
+**Note:** Version bump only for package wgc
+
+# [0.49.0](https://github.com/wundergraph/cosmo/compare/wgc@0.48.0...wgc@0.49.0) (2024-03-20)
+
+### Features
+
+* show warning when both auth methods are used ([#654](https://github.com/wundergraph/cosmo/issues/654)) ([0ee7d3c](https://github.com/wundergraph/cosmo/commit/0ee7d3ce3ed1d3dbd2c6558492cf96d05fa453b9)) (@StarpTech)
+
 # [0.48.0](https://github.com/wundergraph/cosmo/compare/wgc@0.47.0...wgc@0.48.0) (2024-03-20)
 
 ### Features

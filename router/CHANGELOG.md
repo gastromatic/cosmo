@@ -4,6 +4,54 @@ Binaries are attached to the github release otherwise all images can be found [h
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.81.0](https://github.com/wundergraph/cosmo/compare/router@0.80.0...router@0.81.0) (2024-04-09)
+
+### Features
+
+* support Redis connection strings in router ([#697](https://github.com/wundergraph/cosmo/issues/697)) ([f7793c5](https://github.com/wundergraph/cosmo/commit/f7793c58ad7a8024d07c1a287bbe9a2b1c58846f)) (@akoenig)
+
+# [0.80.0](https://github.com/wundergraph/cosmo/compare/router@0.79.2...router@0.80.0) (2024-04-09)
+
+### Features
+
+* support edfs subscription stream/consumer; multiple subjects ([#685](https://github.com/wundergraph/cosmo/issues/685)) ([c70b2ae](https://github.com/wundergraph/cosmo/commit/c70b2aefd39c45b5f98eae8a3c43f639d56064b2)) (@Aenimus)
+
+## [0.79.2](https://github.com/wundergraph/cosmo/compare/router@0.79.1...router@0.79.2) (2024-04-06)
+
+### Bug Fixes
+
+* remove unused host-cpu metric ([#703](https://github.com/wundergraph/cosmo/issues/703)) ([a664631](https://github.com/wundergraph/cosmo/commit/a664631477d8b30b2448f8284db257f4d33446e6)) (@StarpTech)
+
+## [0.79.1](https://github.com/wundergraph/cosmo/compare/router@0.79.0...router@0.79.1) (2024-04-04)
+
+### Bug Fixes
+
+* create individual metrics per error code ([#693](https://github.com/wundergraph/cosmo/issues/693)) ([d63d087](https://github.com/wundergraph/cosmo/commit/d63d087145d7ebeeba0673241e8f902c4008679b)) (@StarpTech)
+
+# [0.79.0](https://github.com/wundergraph/cosmo/compare/router@0.78.0...router@0.79.0) (2024-04-03)
+
+### Features
+
+* subgraph error handling and instrumentation ([#675](https://github.com/wundergraph/cosmo/issues/675)) ([55a1215](https://github.com/wundergraph/cosmo/commit/55a1215f5c1ee417a7287c89520b1540c5066b82)) (@StarpTech)
+
+# [0.78.0](https://github.com/wundergraph/cosmo/compare/router@0.77.0...router@0.78.0) (2024-03-25)
+
+### Features
+
+* add initial payload on WS origin connections ([#667](https://github.com/wundergraph/cosmo/issues/667)) ([989fa2f](https://github.com/wundergraph/cosmo/commit/989fa2fc9908c1067f74172facef317349f105e1)) (@jensneuse)
+
+# [0.77.0](https://github.com/wundergraph/cosmo/compare/router@0.76.0...router@0.77.0) (2024-03-24)
+
+### Features
+
+* multi platform docker builds ([#665](https://github.com/wundergraph/cosmo/issues/665)) ([4c24d70](https://github.com/wundergraph/cosmo/commit/4c24d7075bd48cd946a1037bffc0c4fcaef74289)) (@StarpTech)
+
+# [0.76.0](https://github.com/wundergraph/cosmo/compare/router@0.75.0...router@0.76.0) (2024-03-21)
+
+### Features
+
+* support authentication and multiple sources for nats edfs ([#635](https://github.com/wundergraph/cosmo/issues/635)) ([c6e5c31](https://github.com/wundergraph/cosmo/commit/c6e5c313bee098fcd50cca972a2423d28ecbad70)) (@Aenimus)
+
 # [0.75.0](https://github.com/wundergraph/cosmo/compare/router@0.74.0...router@0.75.0) (2024-03-19)
 
 ### Bug Fixes
